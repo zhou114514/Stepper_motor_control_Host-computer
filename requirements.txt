@@ -1,0 +1,6 @@
+# 步进电机控制上位机依赖
+# 运行环境：conda main_env
+# 安装命令：conda activate main_env && pip install -r requirements.txt
+
+PyQt5>=5.15.0
+pyserial>=3.5

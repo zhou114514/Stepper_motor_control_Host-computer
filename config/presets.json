@@ -1,0 +1,23 @@
+{
+  "_comment": "预设控制配置文件。每项字段说明：name(名称) description(描述) enable(使能 0/1) resolution(分辨率 脉冲/圈) direction(方向 0逆时针/1顺时针) angle(角度 1-36000) frequency(频率 Hz)",
+  "presets": [
+    {
+      "name": "顺时针 90°",
+      "description": "1000 Hz，分辨率 400 脉冲/圈",
+      "enable": 1,
+      "resolution": 400,
+      "direction": 1,
+      "angle": 90,
+      "frequency": 1000
+    },
+    {
+      "name": "逆时针 90°",
+      "description": "1000 Hz，分辨率 400 脉冲/圈",
+      "enable": 1,
+      "resolution": 400,
+      "direction": 0,
+      "angle": 90,
+      "frequency": 1000
+    }
+  ]
+}
