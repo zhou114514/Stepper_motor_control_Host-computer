@@ -1,0 +1,107 @@
+步进电机控制上位机 — TCP 远程控制协议  v1.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 概述
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+上位机内置 TCP 服务器（默认端口 9527），外部程序可建立 TCP 连接后
+通过 JSON 协议远程控制步进电机，协议风格参考激光器控制协议（见《协议》）。
+
+连接信息：
+  地址：运行上位机的主机 IP
+  端口：9527（可在 UI 中修改）
+  编码：UTF-8
+  分隔：每条消息以 \n（0x0A）结尾，支持连续发送
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 消息格式
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+请求格式：
+  {"opcode": "<命令名>", "parameter": {<参数>}}\n
+
+响应格式：
+  {"IsSuccessful": true/false, "Value": <值或"">, "ErrorMessage": "<Null 或错误描述>"}\n
+
+说明：
+  - IsSuccessful  命令是否成功
+  - Value         成功时的返回值（无返回值时为 ""）
+  - ErrorMessage  "Null" 表示无错误；失败时为错误描述字符串
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 指令列表
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1 版本检查
+  请求：{"opcode": "check", "parameter": {}}
+  响应：{"IsSuccessful": true, "Value": {"version": "1.0.0"}, "ErrorMessage": "Null"}
+
+3.2 连接状态检查（串口是否已连接设备）
+  请求：{"opcode": "ConnectDevice", "parameter": {}}
+  响应（已连接）：{"IsSuccessful": true,  "Value": "", "ErrorMessage": "Null"}
+  响应（未连接）：{"IsSuccessful": false, "Value": "", "ErrorMessage": "串口未连接"}
+
+3.3 控制电机运动（同步，等待电机完成后响应）
+  请求：
+  {
+    "opcode": "Move",
+    "parameter": {
+      "enable":     1,     // 使能：1=使能，0=关闭
+      "resolution": 400,   // 分辨率（脉冲/圈），须为合法值
+      "direction":  1,     // 方向：1=顺时针，0=逆时针
+      "angle":      90,    // 旋转角度（整数，度）
+      "frequency":  1000   // 脉冲频率（Hz，整数）
+    }
+  }
+  响应（执行完成）：
+    {"IsSuccessful": true,  "Value": {"status": ["正在运行: ..."]}, "ErrorMessage": "Null"}
+  响应（设备错误）：
+    {"IsSuccessful": false, "Value": "", "ErrorMessage": "<设备返回的错误描述>"}
+  响应（超时无响应）：
+    {"IsSuccessful": false, "Value": "", "ErrorMessage": "命令执行超时，设备可能无响应"}
+  响应（串口未连接）：
+    {"IsSuccessful": false, "Value": "", "ErrorMessage": "串口未连接或发送失败"}
+
+  注意：此命令为同步阻塞，上位机将等待串口响应（含电机运动时间）后才返回，
+        最长等待时间约为电机预估运行时间 + 2 秒余量，上限 300 秒。
+
+3.4 执行预设（从 config/presets.json 按名称查找并执行）
+  请求：{"opcode": "RunPreset", "parameter": {"name": "顺时针 90°"}}
+  响应（成功）：{"IsSuccessful": true,  "Value": {"status": [...]}, "ErrorMessage": "Null"}
+  响应（预设不存在）：{"IsSuccessful": false, "Value": "", "ErrorMessage": "未找到预设: <名称>"}
+  响应（串口未连接）：{"IsSuccessful": false, "Value": "", "ErrorMessage": "串口未连接或发送失败"}
+
+  注意：同 Move，此命令为同步阻塞。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 错误码说明
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  无效的 JSON 格式          — 请求不是合法 JSON
+  缺少 opcode 字段          — 请求中没有 opcode 键
+  参数错误: <详情>          — parameter 中字段缺失或类型错误
+  未知 opcode: <名称>       — 不支持的操作码
+  串口未连接或发送失败      — 上位机未连接步进电机控制器
+  无效分辨率: <值>          — resolution 不在合法列表中
+  未找到预设: <名称>        — presets.json 中无对应名称
+  命令执行超时，设备可能无响应 — 35 秒内未收到设备完成信号
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 示例交互
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 建立连接后先检查版本
+→ {"opcode":"check","parameter":{}}\n
+← {"IsSuccessful": true, "Value": {"version": "1.0.0"}, "ErrorMessage": "Null"}\n
+
+# 确认串口已连接
+→ {"opcode":"ConnectDevice","parameter":{}}\n
+← {"IsSuccessful": true, "Value": "", "ErrorMessage": "Null"}\n
+
+# 顺时针转 90°，400脉冲/圈，1000 Hz
+→ {"opcode":"Move","parameter":{"enable":1,"resolution":400,"direction":1,"angle":90,"frequency":1000}}\n
+← {"IsSuccessful": true, "Value": {"status": ["正在运行: 100 脉冲 @ 500 µs (1000 Hz)"]}, "ErrorMessage": "Null"}\n
+
+# 执行预设
+→ {"opcode":"RunPreset","parameter":{"name":"逆时针 90°"}}\n
+← {"IsSuccessful": true, "Value": {"status": [...]}, "ErrorMessage": "Null"}\n
